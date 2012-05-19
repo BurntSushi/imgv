@@ -13,4 +13,3 @@ func lg(format string, v ...interface{}) {
 	}
 	log.Printf(format, v...)
 }
-

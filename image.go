@@ -7,7 +7,7 @@ import (
 )
 
 type Image struct {
-	orig image.Image
+	orig  image.Image
 	sizes map[int]*xgraphics.Image
 }
 
@@ -18,8 +18,7 @@ func newImage(img image.Image) Image {
 	}
 
 	return Image{
-		orig: img,
+		orig:  img,
 		sizes: sizes,
 	}
 }
-

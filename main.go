@@ -2,11 +2,11 @@ package main
 
 import (
 	"flag"
-	"log"
 	"image"
 	_ "image/gif"
 	_ "image/jpeg"
 	_ "image/png"
+	"log"
 	"os"
 
 	"github.com/BurntSushi/xgbutil"
@@ -53,7 +53,7 @@ func main() {
 
 		img, kind, err := image.Decode(file)
 		if err != nil {
-			errLg.Printf("Could not decode '%s' into a supported image " +
+			errLg.Printf("Could not decode '%s' into a supported image "+
 				"format: %s", err)
 			continue
 		}
@@ -71,4 +71,3 @@ func main() {
 
 	xevent.Main(X)
 }
-
