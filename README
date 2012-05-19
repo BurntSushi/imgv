@@ -1,0 +1,22 @@
+A minimalistic image viewer written in Go.
+
+The list of image formats supported is currently at the mercy of whatever is 
+supported by the Go standard library. Currently, those formats are png, jpg and 
+gif.
+
+Please see `imgv --help` for more options.
+
+Quick Usage
+===========
+go get github.com/BurntSushi/imgv
+imgv image.png image.gif image.jpg
+
+Installation
+============
+go get github.com/BurntSushi/imgv
+
+Dependencies
+============
+Go
+XGB
+xgbutil
