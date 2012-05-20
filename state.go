@@ -5,11 +5,10 @@ import (
 )
 
 type State struct {
-	img Image
+	img  Image
 	ximg *xgraphics.Image
 }
 
 func getCurrentImage() *xgraphics.Image {
 	return state.ximg
 }
-

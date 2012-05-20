@@ -33,9 +33,9 @@ func newWindow(X *xgbutil.XUtil) *window {
 
 func (w *window) create() {
 	err := w.CreateChecked(w.X.RootWin(), 0, 0, flagWidth, flagHeight,
-		xproto.CwBackPixel | xproto.CwEventMask,
+		xproto.CwBackPixel|xproto.CwEventMask,
 		0xffffff,
-		xproto.EventMaskStructureNotify | xproto.EventMaskExposure)
+		xproto.EventMaskStructureNotify|xproto.EventMaskExposure)
 	if err != nil {
 		errLg.Fatalf("Could not create window: %s", err)
 	}
@@ -88,4 +88,3 @@ func (w *window) nameSet(name string) {
 		lg("Could not set _NET_WM_NAME: %s", err)
 	}
 }
-
