@@ -32,11 +32,15 @@ func newWindow(X *xgbutil.XUtil) *window {
 }
 
 func (w *window) create() {
+	keybind.Initialize(w.X)
+	mousebind.Initialize(w.X)
+
 	err := w.CreateChecked(w.X.RootWin(), 0, 0, flagWidth, flagHeight,
 		xproto.CwBackPixel|xproto.CwEventMask,
 		0xffffff,
 		xproto.EventMaskStructureNotify|xproto.EventMaskExposure|
-			xproto.EventMaskButtonPress|xproto.EventMaskButtonRelease)
+			xproto.EventMaskButtonPress|xproto.EventMaskButtonRelease|
+			xproto.EventMaskKeyPress)
 	if err != nil {
 		errLg.Fatalf("Could not create window: %s", err)
 	}
@@ -86,6 +90,18 @@ func (w *window) create() {
 		func(X *xgbutil.XUtil, rx, ry, ex, ey int) {
 			w.panEnd(ex, ey)
 		})
+	keybind.KeyPressFun(
+		func(X *xgbutil.XUtil, ev xevent.KeyPressEvent) {
+			println("trying next size...")
+			nextSize := state.nextSize()
+			if nextSize == state.size {
+				return
+			}
+			println("Got next size!", nextSize)
+			state.size = nextSize
+			state.imageSet(state.img, state.size)
+			state.originSet(image.Point{0, 0})
+		}).Connect(w.X, w.Id, "=", false)
 
 	w.Map()
 }

@@ -13,6 +13,7 @@ type State struct {
 	imgs      []Image
 	img       Image
 	ximg      *xgraphics.Image
+	size      int
 	imgOrigin image.Point
 	panStart  image.Point
 	panOrigin image.Point
@@ -22,6 +23,7 @@ func newState(X *xgbutil.XUtil, imgs []Image) *State {
 	return &State{
 		win:       newWindow(X),
 		imgs:      imgs,
+		size:      100,
 		imgOrigin: image.Point{0, 0},
 	}
 }
@@ -34,8 +36,9 @@ func (s *State) image() *xgraphics.Image {
 }
 
 func (s *State) imageSet(img Image, size int) {
-	s.img = s.imgs[0]
-	s.ximg = state.img.sizes[100]
+	s.img = img
+	s.size = size
+	s.ximg = state.img.sizes[s.size]
 	s.win.nameSet(fmt.Sprintf("%s (%dx%d)",
 		s.img.name, s.img.Bounds().Dx(), s.img.Bounds().Dy()))
 }
@@ -58,4 +61,42 @@ func (s *State) originSet(pt image.Point) {
 	}
 	s.imgOrigin = pt
 	s.win.drawImage()
+}
+
+func (s *State) nextSize() int {
+	// Find the current size in the available sizes.
+	curi := -1
+	for i, size := range sizes {
+		if size == s.size {
+			curi = i
+			break
+		}
+	}
+	if curi == -1 {
+		errLg.Fatal("Could not find current size '%d' in list of available "+
+			"sizes. Something has gone seriously wrong.", s.size)
+	}
+	if curi == len(sizes)-1 {
+		return s.size
+	}
+	return sizes[curi+1]
+}
+
+func (s *State) prevSize() int {
+	// Find the current size in the available sizes.
+	curi := -1
+	for i, size := range sizes {
+		if size == s.size {
+			curi = i
+			break
+		}
+	}
+	if curi == -1 {
+		errLg.Fatal("Could not find current size '%d' in list of available "+
+			"sizes. Something has gone seriously wrong.", s.size)
+	}
+	if curi == 0 {
+		return s.size
+	}
+	return sizes[curi-1]
 }

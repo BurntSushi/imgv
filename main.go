@@ -17,6 +17,13 @@ var (
 	// Global state. Contains X connection, images, window and current image.
 	state *State
 
+	// A list of possible sizes, where 100 corresponds to 100%, or the
+	// size of the image without scaling.
+	// Note that 100 *must* be part of this list, or bad things will happen.
+	// This list should be sorted. (If it isn't, imgv will still function,
+	// but will function oddly.)
+	sizes = []int{25, 50, 75, 100, 200, 300, 400}
+
 	// When flagVerbose is true, logging output will be written to stderr.
 	// Errors will always be written to stderr.
 	flagVerbose bool

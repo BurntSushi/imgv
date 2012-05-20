@@ -16,12 +16,27 @@ type Image struct {
 
 func newImage(X *xgbutil.XUtil, fileName string, img image.Image) Image {
 	reg := xgraphics.NewConvert(X, img)
-	sizes := map[int]*xgraphics.Image{
-		100: reg,
+
+	imageSizes := make(map[int]*xgraphics.Image, len(sizes))
+	has100 := false
+	for _, size := range sizes {
+		if size == 100 {
+			imageSizes[size] = reg
+			has100 = true
+		} else {
+			imageSizes[size] = nil
+		}
+	}
+	if !has100 {
+		errLg.Fatal("Could not find 100 in the list of sizes. This is " +
+			"required for program function.")
 	}
 
 	// Create pixmaps for each size, and fill them in.
-	for _, ximg := range sizes {
+	for _, ximg := range imageSizes {
+		if ximg == nil {
+			continue
+		}
 		if err := ximg.CreatePixmap(); err != nil {
 			errLg.Fatal(err)
 		} else {
@@ -38,6 +53,6 @@ func newImage(X *xgbutil.XUtil, fileName string, img image.Image) Image {
 	return Image{
 		Image: img,
 		name:  name,
-		sizes: sizes,
+		sizes: imageSizes,
 	}
 }
