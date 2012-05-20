@@ -14,15 +14,8 @@ import (
 )
 
 var (
-	// The X connection.
-	X *xgbutil.XUtil
-
-	// The global state of the image viewer. (i.e., which image
-	// is currently being viewed.)
-	state State
-
-	// Global slice of all images parsed at startup.
-	imgs []Image
+	// Global state. Contains X connection, images, window and current image.
+	state *State
 
 	// When flagVerbose is true, logging output will be written to stderr.
 	// Errors will always be written to stderr.
@@ -33,14 +26,6 @@ var (
 )
 
 func init() {
-	var err error
-
-	// Connect to X.
-	X, err = xgbutil.NewConn()
-	if err != nil {
-		errLg.Fatal(err)
-	}
-
 	// Set the prefix for verbose output.
 	log.SetPrefix("[imgv] ")
 
@@ -60,6 +45,13 @@ func init() {
 }
 
 func main() {
+	// Connect to X.
+	X, err := xgbutil.NewConn()
+	if err != nil {
+		errLg.Fatal(err)
+	}
+
+	imgs := make([]Image, 0, flag.NArg())
 	for _, fileName := range flag.Args() {
 		file, err := os.Open(fileName)
 		if err != nil {
@@ -75,7 +67,7 @@ func main() {
 		}
 
 		lg("Decoded '%s' into image type '%s'.", fileName, kind)
-		imgs = append(imgs, newImage(img))
+		imgs = append(imgs, newImage(X, fileName, img))
 	}
 
 	if len(imgs) == 0 {
@@ -83,15 +75,8 @@ func main() {
 		os.Exit(1)
 	}
 
-	// Create and map the image window.
-	newWindow(X)
+	state = newState(X, imgs)
 
-	state.img = imgs[0]
-	state.ximg = state.img.sizes[100]
-	if err := state.ximg.CreatePixmap(); err != nil {
-		errLg.Fatal(err)
-	}
-	state.ximg.XDraw()
-
+	state.imageSet(imgs[0], 100)
 	xevent.Main(X)
 }

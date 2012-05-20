@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"image"
 
 	"github.com/BurntSushi/xgb/xproto"
 
@@ -11,7 +12,6 @@ import (
 	"github.com/BurntSushi/xgbutil/keybind"
 	"github.com/BurntSushi/xgbutil/mousebind"
 	"github.com/BurntSushi/xgbutil/xevent"
-	"github.com/BurntSushi/xgbutil/xgraphics"
 	"github.com/BurntSushi/xgbutil/xwindow"
 )
 
@@ -35,7 +35,8 @@ func (w *window) create() {
 	err := w.CreateChecked(w.X.RootWin(), 0, 0, flagWidth, flagHeight,
 		xproto.CwBackPixel|xproto.CwEventMask,
 		0xffffff,
-		xproto.EventMaskStructureNotify|xproto.EventMaskExposure)
+		xproto.EventMaskStructureNotify|xproto.EventMaskExposure|
+			xproto.EventMaskButtonPress|xproto.EventMaskButtonRelease)
 	if err != nil {
 		errLg.Fatalf("Could not create window: %s", err)
 	}
@@ -68,17 +69,48 @@ func (w *window) create() {
 		func(X *xgbutil.XUtil, ev xevent.ConfigureNotifyEvent) {
 			w.Geom.WidthSet(int(ev.Width))
 			w.Geom.HeightSet(int(ev.Height))
-		}).Connect(X, w.Id)
+		}).Connect(w.X, w.Id)
 	xevent.ExposeFun(
 		func(X *xgbutil.XUtil, ev xevent.ExposeEvent) {
-			w.drawImage(getCurrentImage())
-		}).Connect(X, w.Id)
+			// w.drawImage() 
+			state.originSet(state.imgOrigin)
+		}).Connect(w.X, w.Id)
+	mousebind.Drag(w.X, w.Id, w.Id, "1", false,
+		func(X *xgbutil.XUtil, rx, ry, ex, ey int) (bool, xproto.Cursor) {
+			w.panStart(ex, ey)
+			return true, 0
+		},
+		func(X *xgbutil.XUtil, rx, ry, ex, ey int) {
+			w.panStep(ex, ey)
+		},
+		func(X *xgbutil.XUtil, rx, ry, ex, ey int) {
+			w.panEnd(ex, ey)
+		})
 
 	w.Map()
 }
 
-func (w *window) drawImage(ximg *xgraphics.Image) {
-	ximg.XExpPaint(w.Id, 0, 0)
+func (w *window) drawImage() {
+	ximg := state.image()
+	dst := vpCenter(ximg)
+	w.ClearAll()
+	ximg.XExpPaint(w.Id, dst.X, dst.Y)
+}
+
+func (w *window) panStart(x, y int) {
+	state.panStart = image.Point{x, y}
+	state.panOrigin = state.imgOrigin
+}
+
+func (w *window) panStep(x, y int) {
+	xd, yd := state.panStart.X-x, state.panStart.Y-y
+	ox, oy := state.panOrigin.X, state.panOrigin.Y
+	state.originSet(image.Point{xd + ox, yd + oy})
+}
+
+func (w *window) panEnd(x, y int) {
+	state.panStart = image.Point{}
+	state.panOrigin = image.Point{}
 }
 
 func (w *window) nameSet(name string) {
