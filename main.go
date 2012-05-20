@@ -17,12 +17,19 @@ var (
 	// The X connection.
 	X *xgbutil.XUtil
 
+	// The global state of the image viewer. (i.e., which image
+	// is currently being viewed.)
+	state State
+
 	// Global slice of all images parsed at startup.
 	imgs []Image
 
 	// When flagVerbose is true, logging output will be written to stderr.
 	// Errors will always be written to stderr.
 	flagVerbose bool
+
+	// The initial width and height of the window.
+	flagWidth, flagHeight int
 )
 
 func init() {
@@ -40,7 +47,16 @@ func init() {
 	// Set all of the flags.
 	flag.BoolVar(&flagVerbose, "v", false,
 		"When set, logging output will be printed to stderr.")
+	flag.IntVar(&flagWidth, "width", 600,
+		"The initial width of the window.")
+	flag.IntVar(&flagHeight, "height", 600,
+		"The initial height of the window.")
 	flag.Parse()
+
+	// Do some error checking on the flag values... naughty!
+	if flagWidth == 0 || flagHeight == 0 {
+		errLg.Fatal("The width and height must be non-zero values.")
+	}
 }
 
 func main() {
@@ -67,7 +83,15 @@ func main() {
 		os.Exit(1)
 	}
 
-	imgs[0].sizes[100].XShow()
+	// Create and map the image window.
+	newWindow(X)
+
+	state.img = imgs[0]
+	state.ximg = state.img.sizes[100]
+	if err := state.ximg.CreatePixmap(); err != nil {
+		errLg.Fatal(err)
+	}
+	state.ximg.XDraw()
 
 	xevent.Main(X)
 }
