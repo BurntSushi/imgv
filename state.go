@@ -10,8 +10,8 @@ import (
 
 type State struct {
 	win       *window
-	imgs      []Image
-	img       Image
+	imgs      []*Image
+	img       *Image
 	ximg      *xgraphics.Image
 	size      int
 	imgOrigin image.Point
@@ -19,7 +19,7 @@ type State struct {
 	panOrigin image.Point
 }
 
-func newState(X *xgbutil.XUtil, imgs []Image) *State {
+func newState(X *xgbutil.XUtil, imgs []*Image) *State {
 	return &State{
 		win:       newWindow(X),
 		imgs:      imgs,
@@ -35,10 +35,14 @@ func (s *State) image() *xgraphics.Image {
 	return state.ximg.SubImage(sub)
 }
 
-func (s *State) imageSet(img Image, size int) {
+func (s *State) imageSet(img *Image, size int) {
 	s.img = img
 	s.size = size
 	s.ximg = state.img.sizes[s.size]
+	if s.ximg == nil {
+		img.initializeSize(s.size)
+		s.ximg = state.img.sizes[s.size]
+	}
 	s.win.nameSet(fmt.Sprintf("%s (%dx%d)",
 		s.img.name, s.img.Bounds().Dx(), s.img.Bounds().Dy()))
 }

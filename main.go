@@ -58,7 +58,7 @@ func main() {
 		errLg.Fatal(err)
 	}
 
-	imgs := make([]Image, 0, flag.NArg())
+	imgs := make([]*Image, 0, flag.NArg())
 	for _, fileName := range flag.Args() {
 		file, err := os.Open(fileName)
 		if err != nil {

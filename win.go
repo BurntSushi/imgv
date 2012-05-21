@@ -90,7 +90,7 @@ func (w *window) create() {
 		func(X *xgbutil.XUtil, rx, ry, ex, ey int) {
 			w.panEnd(ex, ey)
 		})
-	keybind.KeyPressFun(
+	err = keybind.KeyPressFun(
 		func(X *xgbutil.XUtil, ev xevent.KeyPressEvent) {
 			println("trying next size...")
 			nextSize := state.nextSize()
@@ -101,7 +101,10 @@ func (w *window) create() {
 			state.size = nextSize
 			state.imageSet(state.img, state.size)
 			state.originSet(image.Point{0, 0})
-		}).Connect(w.X, w.Id, "=", false)
+		}).Connect(w.X, w.Id, "Control-equal", false)
+	if err != nil {
+		errLg.Println(err)
+	}
 
 	w.Map()
 }

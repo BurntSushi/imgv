@@ -14,7 +14,7 @@ type Image struct {
 	sizes map[int]*xgraphics.Image
 }
 
-func newImage(X *xgbutil.XUtil, fileName string, img image.Image) Image {
+func newImage(X *xgbutil.XUtil, fileName string, img image.Image) *Image {
 	reg := xgraphics.NewConvert(X, img)
 
 	imageSizes := make(map[int]*xgraphics.Image, len(sizes))
@@ -50,9 +50,20 @@ func newImage(X *xgbutil.XUtil, fileName string, img image.Image) Image {
 		name = name[lslash+1:]
 	}
 
-	return Image{
+	return &Image{
 		Image: img,
 		name:  name,
 		sizes: imageSizes,
+	}
+}
+
+func (im *Image) initializeSize(size int) {
+	im.sizes[size] = xgraphics.NewConvert(state.win.X, im).Scale(
+		(size*im.Bounds().Dx())/100,
+		(size*im.Bounds().Dy())/100)
+	if err := im.sizes[size].CreatePixmap(); err != nil {
+		errLg.Fatal(err)
+	} else {
+		im.sizes[size].XDraw()
 	}
 }
