@@ -2,6 +2,10 @@ package main
 
 import (
 	"image"
+	_ "image/gif"
+	_ "image/jpeg"
+	_ "image/png"
+	"os"
 	"strings"
 
 	"github.com/BurntSushi/xgbutil"
@@ -9,61 +13,50 @@ import (
 )
 
 type Image struct {
-	image.Image
-	name  string
-	sizes map[int]*xgraphics.Image
+	*xgraphics.Image
+	name string
 }
 
-func newImage(X *xgbutil.XUtil, fileName string, img image.Image) *Image {
-	reg := xgraphics.NewConvert(X, img)
+func newImageChan(X *xgbutil.XUtil, fName string) chan *Image {
+	imgChan := make(chan *Image, 0)
 
-	imageSizes := make(map[int]*xgraphics.Image, len(sizes))
-	has100 := false
-	for _, size := range sizes {
-		if size == 100 {
-			imageSizes[size] = reg
-			has100 = true
-		} else {
-			imageSizes[size] = nil
+	go func() {
+		// Use the base name for this image as its name.
+		name := fName
+		if lslash := strings.LastIndex(name, "/"); lslash != -1 {
+			name = name[lslash+1:]
 		}
-	}
-	if !has100 {
-		errLg.Fatal("Could not find 100 in the list of sizes. This is " +
-			"required for program function.")
-	}
 
-	// Create pixmaps for each size, and fill them in.
-	for _, ximg := range imageSizes {
-		if ximg == nil {
-			continue
+		file, err := os.Open(fName)
+		if err != nil {
+			errLg.Println(err)
+			imgChan <- nil
+			return
 		}
-		if err := ximg.CreatePixmap(); err != nil {
+
+		img, kind, err := image.Decode(file)
+		if err != nil {
+			errLg.Printf("Could not decode '%s' into a supported image "+
+				"format: %s", fName, err)
+			imgChan <- nil
+			return
+		}
+		lg("Decoded '%s' into image type '%s'.", name, kind)
+
+		reg := xgraphics.NewConvert(X, img)
+		lg("Converted '%s' to xgraphics.Image type.", name)
+		if err := reg.CreatePixmap(); err != nil {
 			errLg.Fatal(err)
 		} else {
-			ximg.XDraw()
+			reg.XDraw()
+			lg("Drawn '%s' to an X pixmap.", name)
 		}
-	}
 
-	// Use the base name for this image as its name.
-	name := fileName
-	if lslash := strings.LastIndex(fileName, "/"); lslash != -1 {
-		name = name[lslash+1:]
-	}
+		imgChan <- &Image{
+			Image: reg,
+			name:  name,
+		}
+	}()
 
-	return &Image{
-		Image: img,
-		name:  name,
-		sizes: imageSizes,
-	}
-}
-
-func (im *Image) initializeSize(size int) {
-	im.sizes[size] = xgraphics.NewConvert(state.win.X, im).Scale(
-		(size*im.Bounds().Dx())/100,
-		(size*im.Bounds().Dy())/100)
-	if err := im.sizes[size].CreatePixmap(); err != nil {
-		errLg.Fatal(err)
-	} else {
-		im.sizes[size].XDraw()
-	}
+	return imgChan
 }

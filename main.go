@@ -2,10 +2,6 @@ package main
 
 import (
 	"flag"
-	"image"
-	_ "image/gif"
-	_ "image/jpeg"
-	_ "image/png"
 	"log"
 	"os"
 
@@ -17,19 +13,15 @@ var (
 	// Global state. Contains X connection, images, window and current image.
 	state *State
 
-	// A list of possible sizes, where 100 corresponds to 100%, or the
-	// size of the image without scaling.
-	// Note that 100 *must* be part of this list, or bad things will happen.
-	// This list should be sorted. (If it isn't, imgv will still function,
-	// but will function oddly.)
-	sizes = []int{25, 50, 75, 100, 200, 300, 400}
-
 	// When flagVerbose is true, logging output will be written to stderr.
 	// Errors will always be written to stderr.
 	flagVerbose bool
 
 	// The initial width and height of the window.
 	flagWidth, flagHeight int
+
+	// The amount to increment panning when using h,j,k,l
+	flagStepIncrement int
 )
 
 func init() {
@@ -43,6 +35,8 @@ func init() {
 		"The initial width of the window.")
 	flag.IntVar(&flagHeight, "height", 600,
 		"The initial height of the window.")
+	flag.IntVar(&flagStepIncrement, "increment", 20,
+		"The increment used to pan the image when using keyboard shortcuts.")
 	flag.Parse()
 
 	// Do some error checking on the flag values... naughty!
@@ -58,32 +52,26 @@ func main() {
 		errLg.Fatal(err)
 	}
 
-	imgs := make([]*Image, 0, flag.NArg())
-	for _, fileName := range flag.Args() {
-		file, err := os.Open(fileName)
-		if err != nil {
-			errLg.Println(err)
-			continue
-		}
+	// Create the window before processing any images.
+	win := newWindow(X)
 
-		img, kind, err := image.Decode(file)
-		if err != nil {
-			errLg.Printf("Could not decode '%s' into a supported image "+
-				"format: %s", err)
-			continue
-		}
+	imgChans := make([]chan *Image, 0, flag.NArg())
+	imgs := make([]*Image, flag.NArg())
+	for i, fName := range flag.Args() {
+		imgChans = append(imgChans, newImageChan(X, fName))
 
-		lg("Decoded '%s' into image type '%s'.", fileName, kind)
-		imgs = append(imgs, newImage(X, fileName, img))
+		// If this is the first image, start loading it right away.
+		if i == 0 {
+			imgs[0] = <-imgChans[0]
+		}
 	}
-
-	if len(imgs) == 0 {
+	if len(imgChans) == 0 {
 		errLg.Println("No image files found.")
 		os.Exit(1)
 	}
 
-	state = newState(X, imgs)
+	state = newState(X, win, imgChans, imgs)
 
-	state.imageSet(imgs[0], 100)
+	state.imageSet(0)
 	xevent.Main(X)
 }

@@ -9,98 +9,94 @@ import (
 )
 
 type State struct {
-	win       *window
-	imgs      []*Image
-	img       *Image
-	ximg      *xgraphics.Image
-	size      int
+	win      *window
+	imgChans []chan *Image
+	imgs     []*Image
+	imgi     int
+
 	imgOrigin image.Point
 	panStart  image.Point
 	panOrigin image.Point
 }
 
-func newState(X *xgbutil.XUtil, imgs []*Image) *State {
+func newState(X *xgbutil.XUtil, win *window, imgChans []chan *Image,
+	imgs []*Image) *State {
+
 	return &State{
-		win:       newWindow(X),
+		win:       win,
+		imgChans:  imgChans,
 		imgs:      imgs,
-		size:      100,
 		imgOrigin: image.Point{0, 0},
 	}
 }
 
-func (s *State) image() *xgraphics.Image {
+func (s *State) ximage() *xgraphics.Image {
 	sx, sy := s.imgOrigin.X, s.imgOrigin.Y
 	sub := image.Rect(sx, sy,
 		sx+s.win.Geom.Width(), sy+s.win.Geom.Height())
-	return state.ximg.SubImage(sub)
+	return state.image().SubImage(sub)
 }
 
-func (s *State) imageSet(img *Image, size int) {
-	s.img = img
-	s.size = size
-	s.ximg = state.img.sizes[s.size]
-	if s.ximg == nil {
-		img.initializeSize(s.size)
-		s.ximg = state.img.sizes[s.size]
+func (s *State) image() *Image {
+	return s.imgs[s.imgi]
+}
+
+func (s *State) imageSet(i int) {
+	// Allow looping around the image list.
+	if i < 0 {
+		i = len(s.imgs) - 1
 	}
+	if i >= len(s.imgs) {
+		i = 0
+	}
+
+	// Wait for the image to finish loading first.
+	if s.imgs[i] == nil {
+		s.win.nameSet(fmt.Sprintf("Loading..."))
+		s.imgs[i] = <-s.imgChans[i]
+
+		// If it's still nil, that means there was an error processing
+		// this image. So delete it from s.imgs and s.imgChans and retry.
+		if s.imgs[i] == nil {
+			s.imgs = append(s.imgs[:i], s.imgs[i+1:]...)
+			s.imgChans = append(s.imgChans[:i], s.imgChans[i+1:]...)
+			s.imageSet(i)
+		}
+	}
+	s.imgi = i
 	s.win.nameSet(fmt.Sprintf("%s (%dx%d)",
-		s.img.name, s.img.Bounds().Dx(), s.img.Bounds().Dy()))
+		s.image().name, s.image().Bounds().Dx(), s.image().Bounds().Dy()))
+}
+
+func (s *State) prevImage() {
+	s.imageSet(s.imgi - 1)
+	s.originSet(image.Point{0, 0})
+}
+
+func (s *State) nextImage() {
+	s.imageSet(s.imgi + 1)
+	s.originSet(image.Point{0, 0})
 }
 
 func (s *State) originSet(pt image.Point) {
-	dw := s.ximg.Bounds().Dx() - s.win.Geom.Width()
-	dh := s.ximg.Bounds().Dy() - s.win.Geom.Height()
+	if s.image() == nil {
+		return
+	}
+	dw := s.image().Bounds().Dx() - s.win.Geom.Width()
+	dh := s.image().Bounds().Dy() - s.win.Geom.Height()
 
-	pt.X = min(s.ximg.Bounds().Min.X+dw, max(pt.X, 0))
-	pt.Y = min(s.ximg.Bounds().Min.Y+dh, max(pt.Y, 0))
+	pt.X = min(s.image().Bounds().Min.X+dw, max(pt.X, 0))
+	pt.Y = min(s.image().Bounds().Min.Y+dh, max(pt.Y, 0))
 
 	// Valid origin point. If the width/height of an image is smaller than
 	// the canvas width/height, then the image origin cannot change in x/y
 	// direction.
-	if s.ximg.Bounds().Dx() < s.win.Geom.Width() {
+	if s.image().Bounds().Dx() < s.win.Geom.Width() {
 		pt.X = 0
 	}
-	if s.ximg.Bounds().Dy() < s.win.Geom.Height() {
+	if s.image().Bounds().Dy() < s.win.Geom.Height() {
 		pt.Y = 0
 	}
 	s.imgOrigin = pt
 	s.win.drawImage()
-}
-
-func (s *State) nextSize() int {
-	// Find the current size in the available sizes.
-	curi := -1
-	for i, size := range sizes {
-		if size == s.size {
-			curi = i
-			break
-		}
-	}
-	if curi == -1 {
-		errLg.Fatal("Could not find current size '%d' in list of available "+
-			"sizes. Something has gone seriously wrong.", s.size)
-	}
-	if curi == len(sizes)-1 {
-		return s.size
-	}
-	return sizes[curi+1]
-}
-
-func (s *State) prevSize() int {
-	// Find the current size in the available sizes.
-	curi := -1
-	for i, size := range sizes {
-		if size == s.size {
-			curi = i
-			break
-		}
-	}
-	if curi == -1 {
-		errLg.Fatal("Could not find current size '%d' in list of available "+
-			"sizes. Something has gone seriously wrong.", s.size)
-	}
-	if curi == 0 {
-		return s.size
-	}
-	return sizes[curi-1]
 }
