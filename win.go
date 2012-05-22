@@ -12,20 +12,25 @@ import (
 	"github.com/BurntSushi/xgbutil/keybind"
 	"github.com/BurntSushi/xgbutil/mousebind"
 	"github.com/BurntSushi/xgbutil/xevent"
+	"github.com/BurntSushi/xgbutil/xgraphics"
 	"github.com/BurntSushi/xgbutil/xwindow"
 )
 
 type window struct {
 	*xwindow.Window
+	chans chans
 }
 
-func newWindow(X *xgbutil.XUtil) *window {
+func newWindow(X *xgbutil.XUtil, chans chans) *window {
 	xwin, err := xwindow.Generate(X)
 	if err != nil {
 		errLg.Fatalf("Could not create window: %s", err)
 	}
 
-	w := &window{xwin}
+	w := &window{
+		Window: xwin,
+		chans:  chans,
+	}
 	w.create()
 
 	return w
@@ -74,58 +79,37 @@ func (w *window) create() {
 }
 
 func (w *window) resizeToImage() {
-	w.Resize(state.image().Bounds().Dx(), state.image().Bounds().Dy())
+	w.chans.resizeToImageChan <- struct{}{}
 }
 
 func (w *window) stepLeft() {
-	state.originSet(image.Point{
-		state.imgOrigin.X - flagStepIncrement,
-		state.imgOrigin.Y,
-	})
+	w.chans.funDrawChan <- func(origin image.Point) image.Point {
+		return image.Point{origin.X - flagStepIncrement, origin.Y}
+	}
 }
 
 func (w *window) stepRight() {
-	state.originSet(image.Point{
-		state.imgOrigin.X + flagStepIncrement,
-		state.imgOrigin.Y,
-	})
+	w.chans.funDrawChan <- func(origin image.Point) image.Point {
+		return image.Point{origin.X + flagStepIncrement, origin.Y}
+	}
 }
 
 func (w *window) stepUp() {
-	state.originSet(image.Point{
-		state.imgOrigin.X,
-		state.imgOrigin.Y - flagStepIncrement,
-	})
+	w.chans.funDrawChan <- func(origin image.Point) image.Point {
+		return image.Point{origin.X, origin.Y - flagStepIncrement}
+	}
 }
 
 func (w *window) stepDown() {
-	state.originSet(image.Point{
-		state.imgOrigin.X,
-		state.imgOrigin.Y + flagStepIncrement,
-	})
+	w.chans.funDrawChan <- func(origin image.Point) image.Point {
+		return image.Point{origin.X, origin.Y + flagStepIncrement}
+	}
 }
 
-func (w *window) drawImage() {
-	ximg := state.ximage()
-	dst := vpCenter(ximg)
+func (w *window) paint(ximg *xgraphics.Image) {
+	dst := vpCenter(ximg, w.Geom.Width(), w.Geom.Height())
 	w.ClearAll()
 	ximg.XExpPaint(w.Id, dst.X, dst.Y)
-}
-
-func (w *window) panStart(x, y int) {
-	state.panStart = image.Point{x, y}
-	state.panOrigin = state.imgOrigin
-}
-
-func (w *window) panStep(x, y int) {
-	xd, yd := state.panStart.X-x, state.panStart.Y-y
-	ox, oy := state.panOrigin.X, state.panOrigin.Y
-	state.originSet(image.Point{xd + ox, yd + oy})
-}
-
-func (w *window) panEnd(x, y int) {
-	state.panStart = image.Point{}
-	state.panOrigin = image.Point{}
 }
 
 func (w *window) nameSet(name string) {
@@ -147,28 +131,30 @@ func (w *window) setupEventHandlers() {
 	// Repaint the window on expose events.
 	xevent.ExposeFun(
 		func(X *xgbutil.XUtil, ev xevent.ExposeEvent) {
-			state.originSet(state.imgOrigin)
+			w.chans.funDrawChan <- func(origin image.Point) image.Point {
+				return origin
+			}
 		}).Connect(w.X, w.Id)
 
 	// Setup a drag handler to allow panning.
 	mousebind.Drag(w.X, w.Id, w.Id, "1", false,
 		func(X *xgbutil.XUtil, rx, ry, ex, ey int) (bool, xproto.Cursor) {
-			w.panStart(ex, ey)
+			w.chans.panStartChan <- image.Point{ex, ey}
 			return true, 0
 		},
 		func(X *xgbutil.XUtil, rx, ry, ex, ey int) {
-			w.panStep(ex, ey)
+			w.chans.panStepChan <- image.Point{ex, ey}
 		},
 		func(X *xgbutil.XUtil, rx, ry, ex, ey int) {
-			w.panEnd(ex, ey)
+			w.chans.panEndChan <- image.Point{ex, ey}
 		})
 
 	// Set up a map of keybindings to avoid a lot of boiler plate.
 	kbs := map[string]func(){
-		"left":    func() { state.prevImage() },
-		"right":   func() { state.nextImage() },
-		"shift-h": func() { state.prevImage() },
-		"shift-l": func() { state.nextImage() },
+		"left":    func() { w.chans.prevImg <- struct{}{} },
+		"right":   func() { w.chans.nextImg <- struct{}{} },
+		"shift-h": func() { w.chans.prevImg <- struct{}{} },
+		"shift-l": func() { w.chans.nextImg <- struct{}{} },
 
 		"r": func() { w.resizeToImage() },
 

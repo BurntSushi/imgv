@@ -13,20 +13,20 @@ import (
 // If a dimension of the image is smaller than the canvas, then:
 // x = (canvas_width - image_width) / 2 and
 // y = (canvas_height - image_height) / 2
-func vpCenter(ximg *xgraphics.Image) image.Point {
-	return image.Point{vpXMargin(ximg), vpYMargin(ximg)}
+func vpCenter(ximg *xgraphics.Image, canWidth, canHeight int) image.Point {
+	return image.Point{vpXMargin(ximg, canWidth), vpYMargin(ximg, canHeight)}
 }
 
-func vpXMargin(ximg *xgraphics.Image) int {
-	if ximg.Bounds().Dx() < state.win.Geom.Width() {
-		return (state.win.Geom.Width() - ximg.Bounds().Dx()) / 2
+func vpXMargin(ximg *xgraphics.Image, canWidth int) int {
+	if ximg.Bounds().Dx() < canWidth {
+		return (canWidth - ximg.Bounds().Dx()) / 2
 	}
 	return 0
 }
 
-func vpYMargin(ximg *xgraphics.Image) int {
-	if ximg.Bounds().Dy() < state.win.Geom.Height() {
-		return (state.win.Geom.Height() - ximg.Bounds().Dy()) / 2
+func vpYMargin(ximg *xgraphics.Image, canHeight int) int {
+	if ximg.Bounds().Dy() < canHeight {
+		return (canHeight - ximg.Bounds().Dy()) / 2
 	}
 	return 0
 }

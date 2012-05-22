@@ -3,16 +3,12 @@ package main
 import (
 	"flag"
 	"log"
-	"os"
 
 	"github.com/BurntSushi/xgbutil"
 	"github.com/BurntSushi/xgbutil/xevent"
 )
 
 var (
-	// Global state. Contains X connection, images, window and current image.
-	state *State
-
 	// When flagVerbose is true, logging output will be written to stderr.
 	// Errors will always be written to stderr.
 	flagVerbose bool
@@ -58,26 +54,11 @@ func main() {
 		errLg.Fatal(err)
 	}
 
-	// Create the window before processing any images.
-	win := newWindow(X)
+	chans := canvas(X, flag.NArg())
 
-	imgChans := make([]chan *Image, 0, flag.NArg())
-	imgs := make([]*Image, flag.NArg())
 	for i, fName := range flag.Args() {
-		imgChans = append(imgChans, newImageChan(Ximg, fName))
-
-		// If this is the first image, start loading it right away.
-		if i == 0 {
-			imgs[0] = <-imgChans[0]
-		}
-	}
-	if len(imgChans) == 0 {
-		errLg.Println("No image files found.")
-		os.Exit(1)
+		go newImage(Ximg, fName, i, chans.imgChan)
 	}
 
-	state = newState(X, win, imgChans, imgs)
-
-	state.imageSet(0)
 	xevent.Main(X)
 }

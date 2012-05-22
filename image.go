@@ -17,46 +17,47 @@ type Image struct {
 	name string
 }
 
-func newImageChan(X *xgbutil.XUtil, fName string) chan *Image {
-	imgChan := make(chan *Image, 0)
+func newImage(X *xgbutil.XUtil, fName string, index int,
+	imgChan chan imageLoaded) {
 
-	go func() {
-		// Use the base name for this image as its name.
-		name := fName
-		if lslash := strings.LastIndex(name, "/"); lslash != -1 {
-			name = name[lslash+1:]
-		}
+	// We send this when we're done processing this image, whether its
+	// an error or not.
+	loaded := imageLoaded{index: index}
 
-		file, err := os.Open(fName)
-		if err != nil {
-			errLg.Println(err)
-			imgChan <- nil
-			return
-		}
+	// Use the base name for this image as its name.
+	name := fName
+	if lslash := strings.LastIndex(name, "/"); lslash != -1 {
+		name = name[lslash+1:]
+	}
 
-		img, kind, err := image.Decode(file)
-		if err != nil {
-			errLg.Printf("Could not decode '%s' into a supported image "+
-				"format: %s", fName, err)
-			imgChan <- nil
-			return
-		}
-		lg("Decoded '%s' into image type '%s'.", name, kind)
+	file, err := os.Open(fName)
+	if err != nil {
+		errLg.Println(err)
+		imgChan <- loaded
+		return
+	}
 
-		reg := xgraphics.NewConvert(X, img)
-		lg("Converted '%s' to xgraphics.Image type.", name)
-		if err := reg.CreatePixmap(); err != nil {
-			errLg.Fatal(err)
-		} else {
-			reg.XDraw()
-			lg("Drawn '%s' to an X pixmap.", name)
-		}
+	img, kind, err := image.Decode(file)
+	if err != nil {
+		errLg.Printf("Could not decode '%s' into a supported image "+
+			"format: %s", fName, err)
+		imgChan <- loaded
+		return
+	}
+	lg("Decoded '%s' into image type '%s'.", name, kind)
 
-		imgChan <- &Image{
-			Image: reg,
-			name:  name,
-		}
-	}()
+	reg := xgraphics.NewConvert(X, img)
+	lg("Converted '%s' to xgraphics.Image type.", name)
+	if err := reg.CreatePixmap(); err != nil {
+		errLg.Fatal(err)
+	} else {
+		reg.XDraw()
+		lg("Drawn '%s' to an X pixmap.", name)
+	}
 
-	return imgChan
+	loaded.img = &Image{
+		Image: reg,
+		name:  name,
+	}
+	imgChan <- loaded
 }
