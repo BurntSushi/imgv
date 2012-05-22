@@ -61,6 +61,7 @@ func (s *State) imageSet(i int) {
 			s.imgs = append(s.imgs[:i], s.imgs[i+1:]...)
 			s.imgChans = append(s.imgChans[:i], s.imgChans[i+1:]...)
 			s.imageSet(i)
+			return
 		}
 	}
 	s.imgi = i

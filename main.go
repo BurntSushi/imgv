@@ -52,13 +52,19 @@ func main() {
 		errLg.Fatal(err)
 	}
 
+	// Get another connection to send images over.
+	Ximg, err := xgbutil.NewConn()
+	if err != nil {
+		errLg.Fatal(err)
+	}
+
 	// Create the window before processing any images.
 	win := newWindow(X)
 
 	imgChans := make([]chan *Image, 0, flag.NArg())
 	imgs := make([]*Image, flag.NArg())
 	for i, fName := range flag.Args() {
-		imgChans = append(imgChans, newImageChan(X, fName))
+		imgChans = append(imgChans, newImageChan(Ximg, fName))
 
 		// If this is the first image, start loading it right away.
 		if i == 0 {
