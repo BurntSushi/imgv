@@ -8,7 +8,9 @@ import (
 	_ "image/png"
 	"log"
 	"os"
+	"runtime/pprof"
 	"strings"
+	"time"
 
 	"github.com/BurntSushi/xgbutil"
 	"github.com/BurntSushi/xgbutil/xevent"
@@ -24,6 +26,9 @@ var (
 
 	// The amount to increment panning when using h,j,k,l
 	flagStepIncrement int
+
+	// Whether to run a CPU profile.
+	flagProfile string
 )
 
 func init() {
@@ -39,6 +44,8 @@ func init() {
 		"The initial height of the window.")
 	flag.IntVar(&flagStepIncrement, "increment", 20,
 		"The increment used to pan the image when using keyboard shortcuts.")
+	flag.StringVar(&flagProfile, "profile", "",
+		"If set, a CPU profile will be saved to the file name provided.")
 	flag.Parse()
 
 	// Do some error checking on the flag values... naughty!
@@ -53,11 +60,21 @@ type tmpImage struct {
 }
 
 func main() {
-	// Connect to X.
+	if len(flagProfile) > 0 {
+		f, err := os.Create(flagProfile)
+		if err != nil {
+			errLg.Fatal(err)
+		}
+		pprof.StartCPUProfile(f)
+		defer pprof.StopCPUProfile()
+	}
+
 	X, err := xgbutil.NewConn()
 	if err != nil {
 		errLg.Fatal(err)
 	}
+
+	window := newWindow(X)
 
 	imgChans := make([]chan tmpImage, flag.NArg())
 	for i, fName := range flag.Args() {
@@ -70,6 +87,7 @@ func main() {
 				return
 			}
 
+			start := time.Now()
 			img, kind, err := image.Decode(file)
 			if err != nil {
 				errLg.Printf("Could not decode '%s' into a supported image "+
@@ -77,7 +95,8 @@ func main() {
 				close(imgChans[i])
 				return
 			}
-			lg("Decoded '%s' into image type '%s'.", fName, kind)
+			lg("Decoded '%s' into image type '%s' (%s).",
+				fName, kind, time.Since(start))
 
 			imgChans[i] <- tmpImage{
 				img:  img,
@@ -95,7 +114,7 @@ func main() {
 		}
 	}
 
-	chans := canvas(X, names, len(imgs))
+	chans := canvas(X, window, names, len(imgs))
 	for i, tmpImage := range imgs {
 		go newImage(X, tmpImage.name, tmpImage.img, i,
 			chans.imgLoadChans[i], chans.imgChan)

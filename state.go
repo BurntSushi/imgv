@@ -9,9 +9,7 @@ import (
 
 type chans struct {
 	imgChan           chan imageLoaded
-	setImgChan        chan int
-	drawChan          chan image.Point
-	funDrawChan       chan func(pt image.Point) image.Point
+	drawChan          chan func(pt image.Point) image.Point
 	resizeToImageChan chan struct{}
 	prevImg           chan struct{}
 	nextImg           chan struct{}
@@ -32,11 +30,9 @@ type geometry struct {
 	Width, Height int
 }
 
-func canvas(X *xgbutil.XUtil, names []string, nimgs int) chans {
+func canvas(X *xgbutil.XUtil, window *window, names []string, nimgs int) chans {
 	imgChan := make(chan imageLoaded, 0)
-	setImgChan := make(chan int, 0)
-	drawChan := make(chan image.Point, 0)
-	funDrawChan := make(chan func(pt image.Point) image.Point, 0)
+	drawChan := make(chan func(pt image.Point) image.Point, 0)
 	resizeToImageChan := make(chan struct{}, 0)
 	prevImg := make(chan struct{}, 0)
 	nextImg := make(chan struct{}, 0)
@@ -53,9 +49,7 @@ func canvas(X *xgbutil.XUtil, names []string, nimgs int) chans {
 
 	chans := chans{
 		imgChan:           imgChan,
-		setImgChan:        setImgChan,
 		drawChan:          drawChan,
-		funDrawChan:       funDrawChan,
 		resizeToImageChan: resizeToImageChan,
 		prevImg:           prevImg,
 		nextImg:           nextImg,
@@ -68,9 +62,10 @@ func canvas(X *xgbutil.XUtil, names []string, nimgs int) chans {
 	}
 
 	imgs := make([]*Image, nimgs)
-	window := newWindow(X, chans)
+	window.setupEventHandlers(chans)
 	current := 0
 	origin := image.Point{0, 0}
+
 	setOrigin := func(org image.Point) {
 		origin = originTrans(org, window, imgs[current])
 	}
@@ -84,13 +79,13 @@ func canvas(X *xgbutil.XUtil, names []string, nimgs int) chans {
 
 		current = i
 		if imgs[i] == nil {
+			window.nameSet(fmt.Sprintf("%s - Loading...", names[i]))
+			window.ClearAll()
+
 			if imgLoadChans[i] != nil {
 				imgLoadChans[i] <- struct{}{}
 				imgLoadChans[i] = nil
 			}
-
-			window.nameSet(fmt.Sprintf("%s - Loading...", names[i]))
-			window.ClearAll()
 			return
 		}
 
@@ -108,11 +103,7 @@ func canvas(X *xgbutil.XUtil, names []string, nimgs int) chans {
 				if current == img.index {
 					show(window, imgs[current], origin)
 				}
-			case imgi := <-setImgChan:
-				setImage(imgi, image.Point{0, 0})
-			case pt := <-drawChan:
-				setImage(current, pt)
-			case funpt := <-funDrawChan:
+			case funpt := <-drawChan:
 				setImage(current, funpt(origin))
 			case <-resizeToImageChan:
 				window.Resize(imgs[current].Bounds().Dx(),

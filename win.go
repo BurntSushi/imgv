@@ -21,7 +21,7 @@ type window struct {
 	chans chans
 }
 
-func newWindow(X *xgbutil.XUtil, chans chans) *window {
+func newWindow(X *xgbutil.XUtil) *window {
 	xwin, err := xwindow.Generate(X)
 	if err != nil {
 		errLg.Fatalf("Could not create window: %s", err)
@@ -29,7 +29,6 @@ func newWindow(X *xgbutil.XUtil, chans chans) *window {
 
 	w := &window{
 		Window: xwin,
-		chans:  chans,
 	}
 	w.create()
 
@@ -73,8 +72,6 @@ func (w *window) create() {
 	// Set the name to something.
 	w.nameSet("Loading...")
 
-	w.setupEventHandlers()
-
 	w.Map()
 }
 
@@ -83,25 +80,25 @@ func (w *window) resizeToImage() {
 }
 
 func (w *window) stepLeft() {
-	w.chans.funDrawChan <- func(origin image.Point) image.Point {
+	w.chans.drawChan <- func(origin image.Point) image.Point {
 		return image.Point{origin.X - flagStepIncrement, origin.Y}
 	}
 }
 
 func (w *window) stepRight() {
-	w.chans.funDrawChan <- func(origin image.Point) image.Point {
+	w.chans.drawChan <- func(origin image.Point) image.Point {
 		return image.Point{origin.X + flagStepIncrement, origin.Y}
 	}
 }
 
 func (w *window) stepUp() {
-	w.chans.funDrawChan <- func(origin image.Point) image.Point {
+	w.chans.drawChan <- func(origin image.Point) image.Point {
 		return image.Point{origin.X, origin.Y - flagStepIncrement}
 	}
 }
 
 func (w *window) stepDown() {
-	w.chans.funDrawChan <- func(origin image.Point) image.Point {
+	w.chans.drawChan <- func(origin image.Point) image.Point {
 		return image.Point{origin.X, origin.Y + flagStepIncrement}
 	}
 }
@@ -120,7 +117,9 @@ func (w *window) nameSet(name string) {
 	}
 }
 
-func (w *window) setupEventHandlers() {
+func (w *window) setupEventHandlers(chans chans) {
+	w.chans = chans
+
 	// Keep a state of window geometry.
 	xevent.ConfigureNotifyFun(
 		func(X *xgbutil.XUtil, ev xevent.ConfigureNotifyEvent) {
@@ -131,7 +130,7 @@ func (w *window) setupEventHandlers() {
 	// Repaint the window on expose events.
 	xevent.ExposeFun(
 		func(X *xgbutil.XUtil, ev xevent.ExposeEvent) {
-			w.chans.funDrawChan <- func(origin image.Point) image.Point {
+			w.chans.drawChan <- func(origin image.Point) image.Point {
 				return origin
 			}
 		}).Connect(w.X, w.Id)
