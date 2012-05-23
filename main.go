@@ -9,8 +9,6 @@ import (
 	"log"
 	"os"
 	"runtime/pprof"
-	"strings"
-	"time"
 
 	"github.com/BurntSushi/xgbutil"
 	"github.com/BurntSushi/xgbutil/xevent"
@@ -54,12 +52,8 @@ func init() {
 	}
 }
 
-type tmpImage struct {
-	img  image.Image
-	name string
-}
-
 func main() {
+	// Run the CPU profile if we're instructed to.
 	if len(flagProfile) > 0 {
 		f, err := os.Create(flagProfile)
 		if err != nil {
@@ -69,15 +63,39 @@ func main() {
 		defer pprof.StopCPUProfile()
 	}
 
+	// Connect to X and quit if we fail.
 	X, err := xgbutil.NewConn()
 	if err != nil {
 		errLg.Fatal(err)
 	}
 
+	// Create the X window before starting anything so that the user knows
+	// something is going on.
 	window := newWindow(X)
 
+	// Decode all images (in parallel).
+	names, imgs := decodeImages(flag.Args())
+
+	// Create the canvas and start the image goroutines.
+	chans := canvas(X, window, names, len(imgs))
+	for i, img := range imgs {
+		go newImage(X, names[i], img, i, chans.imgLoadChans[i], chans.imgChan)
+	}
+
+	// Start the main X event loop.
+	xevent.Main(X)
+}
+
+func decodeImages(imageFiles []string) ([]string, []image.Image) {
+	// A temporary type used to transport decoded images over channels.
+	type tmpImage struct {
+		img  image.Image
+		name string
+	}
+
+	// Decoded all images specified in parallel.
 	imgChans := make([]chan tmpImage, flag.NArg())
-	for i, fName := range flag.Args() {
+	for i, fName := range imageFiles {
 		imgChans[i] = make(chan tmpImage, 0)
 		go func(i int, fName string) {
 			file, err := os.Open(fName)
@@ -87,7 +105,6 @@ func main() {
 				return
 			}
 
-			start := time.Now()
 			img, kind, err := image.Decode(file)
 			if err != nil {
 				errLg.Printf("Could not decode '%s' into a supported image "+
@@ -95,37 +112,26 @@ func main() {
 				close(imgChans[i])
 				return
 			}
-			lg("Decoded '%s' into image type '%s' (%s).",
-				fName, kind, time.Since(start))
+			lg("Decoded '%s' into image type '%s'.",
+				fName, kind)
 
 			imgChans[i] <- tmpImage{
 				img:  img,
-				name: basename(fName),
+				name: fName,
 			}
 		}(i, fName)
 	}
 
-	imgs := make([]tmpImage, 0, flag.NArg())
+	// Now collect all the decoded images into a slice of names and a slice
+	// of images.
 	names := make([]string, 0, flag.NArg())
+	imgs := make([]image.Image, 0, flag.NArg())
 	for _, imgChan := range imgChans {
 		if tmpImg, ok := <-imgChan; ok {
-			imgs = append(imgs, tmpImg)
 			names = append(names, tmpImg.name)
+			imgs = append(imgs, tmpImg.img)
 		}
 	}
 
-	chans := canvas(X, window, names, len(imgs))
-	for i, tmpImage := range imgs {
-		go newImage(X, tmpImage.name, tmpImage.img, i,
-			chans.imgLoadChans[i], chans.imgChan)
-	}
-
-	xevent.Main(X)
-}
-
-func basename(fName string) string {
-	if lslash := strings.LastIndex(fName, "/"); lslash != -1 {
-		fName = fName[lslash+1:]
-	}
-	return fName
+	return names, imgs
 }

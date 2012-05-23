@@ -70,7 +70,7 @@ func (w *window) create() {
 	ewmh.WmStateSet(w.X, w.Id, []string{"_NET_WM_STATE_NORMAL"})
 
 	// Set the name to something.
-	w.nameSet("Loading...")
+	w.nameSet("Decoding all images...")
 
 	w.Map()
 }

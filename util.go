@@ -2,6 +2,7 @@ package main
 
 import (
 	"image"
+	"strings"
 
 	"github.com/BurntSushi/xgbutil/xgraphics"
 )
@@ -29,6 +30,13 @@ func vpYMargin(ximg *xgraphics.Image, canHeight int) int {
 		return (canHeight - ximg.Bounds().Dy()) / 2
 	}
 	return 0
+}
+
+func basename(fName string) string {
+	if lslash := strings.LastIndex(fName, "/"); lslash != -1 {
+		fName = fName[lslash+1:]
+	}
+	return fName
 }
 
 func min(a, b int) int {

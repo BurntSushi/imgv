@@ -26,10 +26,6 @@ type imageLoaded struct {
 	index int
 }
 
-type geometry struct {
-	Width, Height int
-}
-
 func canvas(X *xgbutil.XUtil, window *window, names []string, nimgs int) chans {
 	imgChan := make(chan imageLoaded, 0)
 	drawChan := make(chan func(pt image.Point) image.Point, 0)
@@ -128,19 +124,29 @@ func canvas(X *xgbutil.XUtil, window *window, names []string, nimgs int) chans {
 	return chans
 }
 
+// originTrans translates the origin with respect to the current image and the
+// current canvas size. This makes sure we never incorrect position the image.
+// (i.e., panning never goes too far, and whenever the canvas is bigger than
+// the image, the origin is *always* (0, 0).
 func originTrans(pt image.Point, win *window, img *Image) image.Point {
+	// If there's no valid image, then always return (0, 0).
 	if img == nil {
 		return image.Point{0, 0}
 	}
 
+	// Quick aliases.
 	ww, wh := win.Geom.Width(), win.Geom.Height()
 	dw := img.Bounds().Dx() - ww
 	dh := img.Bounds().Dy() - wh
 
+	// Set the allowable range of the origin point of the image.
+	// i.e., never less than (0, 0) and never greater than the width/height
+	// of the image that isn't viewable at any given point (which is determined
+	// by the canvas size).
 	pt.X = min(img.Bounds().Min.X+dw, max(pt.X, 0))
 	pt.Y = min(img.Bounds().Min.Y+dh, max(pt.Y, 0))
 
-	// Valid origin point. If the width/height of an image is smaller than
+	// Validate origin point. If the width/height of an image is smaller than
 	// the canvas width/height, then the image origin cannot change in x/y
 	// direction.
 	if img.Bounds().Dx() < ww {
@@ -153,16 +159,24 @@ func originTrans(pt image.Point, win *window, img *Image) image.Point {
 	return pt
 }
 
+// show translates the given origin point, paints the appropriate part of the
+// current image to the canvas, and sets the name of the window.
+// (Painting only paints the sub-image that is viewable.)
 func show(win *window, img *Image, pt image.Point) {
+	// If there's no valid image, don't bother trying to show it.
+	// (We're hopefully loading the image now.)
 	if img == nil {
 		return
 	}
+
+	// Translate the origin to reflect the size of the image and canvas.
 	pt = originTrans(pt, win, img)
 
 	// Now paint the sub-image to the window.
 	win.paint(img.SubImage(image.Rect(pt.X, pt.Y,
 		pt.X+win.Geom.Width(), pt.Y+win.Geom.Height())))
 
+	// Always set the name of the window when we update it with a new image.
 	win.nameSet(fmt.Sprintf("%s (%dx%d)",
 		img.name, img.Bounds().Dx(), img.Bounds().Dy()))
 }
