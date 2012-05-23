@@ -2,7 +2,13 @@ package main
 
 import (
 	"flag"
+	"image"
+	_ "image/gif"
+	_ "image/jpeg"
+	_ "image/png"
 	"log"
+	"os"
+	"strings"
 
 	"github.com/BurntSushi/xgbutil"
 	"github.com/BurntSushi/xgbutil/xevent"
@@ -41,6 +47,11 @@ func init() {
 	}
 }
 
+type tmpImage struct {
+	img  image.Image
+	name string
+}
+
 func main() {
 	// Connect to X.
 	X, err := xgbutil.NewConn()
@@ -48,17 +59,54 @@ func main() {
 		errLg.Fatal(err)
 	}
 
-	// Get another connection to send images over.
-	Ximg, err := xgbutil.NewConn()
-	if err != nil {
-		errLg.Fatal(err)
+	imgChans := make([]chan tmpImage, flag.NArg())
+	for i, fName := range flag.Args() {
+		imgChans[i] = make(chan tmpImage, 0)
+		go func(i int, fName string) {
+			file, err := os.Open(fName)
+			if err != nil {
+				errLg.Println(err)
+				close(imgChans[i])
+				return
+			}
+
+			img, kind, err := image.Decode(file)
+			if err != nil {
+				errLg.Printf("Could not decode '%s' into a supported image "+
+					"format: %s", fName, err)
+				close(imgChans[i])
+				return
+			}
+			lg("Decoded '%s' into image type '%s'.", fName, kind)
+
+			imgChans[i] <- tmpImage{
+				img:  img,
+				name: basename(fName),
+			}
+		}(i, fName)
 	}
 
-	chans := canvas(X, flag.NArg())
+	imgs := make([]tmpImage, 0, flag.NArg())
+	names := make([]string, 0, flag.NArg())
+	for _, imgChan := range imgChans {
+		if tmpImg, ok := <-imgChan; ok {
+			imgs = append(imgs, tmpImg)
+			names = append(names, tmpImg.name)
+		}
+	}
 
-	for i, fName := range flag.Args() {
-		go newImage(Ximg, fName, i, chans.imgChan)
+	chans := canvas(X, names, len(imgs))
+	for i, tmpImage := range imgs {
+		go newImage(X, tmpImage.name, tmpImage.img, i,
+			chans.imgLoadChans[i], chans.imgChan)
 	}
 
 	xevent.Main(X)
+}
+
+func basename(fName string) string {
+	if lslash := strings.LastIndex(fName, "/"); lslash != -1 {
+		fName = fName[lslash+1:]
+	}
+	return fName
 }

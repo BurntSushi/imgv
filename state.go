@@ -16,6 +16,8 @@ type chans struct {
 	prevImg           chan struct{}
 	nextImg           chan struct{}
 
+	imgLoadChans []chan struct{}
+
 	panStartChan chan image.Point
 	panStepChan  chan image.Point
 	panEndChan   chan image.Point
@@ -30,7 +32,7 @@ type geometry struct {
 	Width, Height int
 }
 
-func canvas(X *xgbutil.XUtil, nimgs int) chans {
+func canvas(X *xgbutil.XUtil, names []string, nimgs int) chans {
 	imgChan := make(chan imageLoaded, 0)
 	setImgChan := make(chan int, 0)
 	drawChan := make(chan image.Point, 0)
@@ -38,6 +40,11 @@ func canvas(X *xgbutil.XUtil, nimgs int) chans {
 	resizeToImageChan := make(chan struct{}, 0)
 	prevImg := make(chan struct{}, 0)
 	nextImg := make(chan struct{}, 0)
+
+	imgLoadChans := make([]chan struct{}, nimgs)
+	for i := range imgLoadChans {
+		imgLoadChans[i] = make(chan struct{}, 0)
+	}
 
 	panStartChan := make(chan image.Point, 0)
 	panStepChan := make(chan image.Point, 0)
@@ -53,6 +60,8 @@ func canvas(X *xgbutil.XUtil, nimgs int) chans {
 		prevImg:           prevImg,
 		nextImg:           nextImg,
 
+		imgLoadChans: imgLoadChans,
+
 		panStartChan: panStartChan,
 		panStepChan:  panStepChan,
 		panEndChan:   panEndChan,
@@ -65,19 +74,27 @@ func canvas(X *xgbutil.XUtil, nimgs int) chans {
 	setOrigin := func(org image.Point) {
 		origin = originTrans(org, window, imgs[current])
 	}
-	setImage := func(i int) {
+	setImage := func(i int, pt image.Point) {
 		if i >= len(imgs) {
 			i = 0
 		}
 		if i < 0 {
 			i = len(imgs) - 1
 		}
+
+		current = i
 		if imgs[i] == nil {
+			if imgLoadChans[i] != nil {
+				imgLoadChans[i] <- struct{}{}
+				imgLoadChans[i] = nil
+			}
+
+			window.nameSet(fmt.Sprintf("%s - Loading...", names[i]))
+			window.ClearAll()
 			return
 		}
 
-		setOrigin(image.Point{0, 0})
-		current = i
+		setOrigin(pt)
 		show(window, imgs[i], origin)
 	}
 
@@ -85,41 +102,32 @@ func canvas(X *xgbutil.XUtil, nimgs int) chans {
 		for {
 			select {
 			case img := <-imgChan:
-				// If the returned image value is nil, then throw it away since
-				// there was some sort of error.
-				if img.img == nil {
-					imgs = append(imgs[:img.index], imgs[img.index+1:]...)
-					break
-				} else {
-					imgs[img.index] = img.img
-				}
+				imgs[img.index] = img.img
 
 				// If this is the current image, show it!
 				if current == img.index {
 					show(window, imgs[current], origin)
 				}
 			case imgi := <-setImgChan:
-				setImage(imgi)
+				setImage(imgi, image.Point{0, 0})
 			case pt := <-drawChan:
-				setOrigin(pt)
-				show(window, imgs[current], origin)
+				setImage(current, pt)
 			case funpt := <-funDrawChan:
-				setOrigin(funpt(origin))
-				show(window, imgs[current], origin)
+				setImage(current, funpt(origin))
 			case <-resizeToImageChan:
 				window.Resize(imgs[current].Bounds().Dx(),
 					imgs[current].Bounds().Dy())
 			case <-prevImg:
-				setImage(current - 1)
+				setImage(current-1, image.Point{0, 0})
 			case <-nextImg:
-				setImage(current + 1)
+				setImage(current+1, image.Point{0, 0})
 			case pt := <-panStartChan:
 				panStart = pt
 				panOrigin = origin
 			case pt := <-panStepChan:
 				xd, yd := panStart.X-pt.X, panStart.Y-pt.Y
-				setOrigin(image.Point{xd + panOrigin.X, yd + panOrigin.Y})
-				show(window, imgs[current], origin)
+				setImage(current,
+					image.Point{xd + panOrigin.X, yd + panOrigin.Y})
 			case <-panEndChan:
 				panStart, panOrigin = image.Point{}, image.Point{}
 			}

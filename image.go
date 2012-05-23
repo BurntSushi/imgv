@@ -2,11 +2,6 @@ package main
 
 import (
 	"image"
-	_ "image/gif"
-	_ "image/jpeg"
-	_ "image/png"
-	"os"
-	"strings"
 
 	"github.com/BurntSushi/xgbutil"
 	"github.com/BurntSushi/xgbutil/xgraphics"
@@ -17,34 +12,15 @@ type Image struct {
 	name string
 }
 
-func newImage(X *xgbutil.XUtil, fName string, index int,
-	imgChan chan imageLoaded) {
+func newImage(X *xgbutil.XUtil, name string, img image.Image, index int,
+	imgLoadChan chan struct{}, imgChan chan imageLoaded) {
+
+	// Don't start loading until we're told to do so.
+	<-imgLoadChan
 
 	// We send this when we're done processing this image, whether its
 	// an error or not.
 	loaded := imageLoaded{index: index}
-
-	// Use the base name for this image as its name.
-	name := fName
-	if lslash := strings.LastIndex(name, "/"); lslash != -1 {
-		name = name[lslash+1:]
-	}
-
-	file, err := os.Open(fName)
-	if err != nil {
-		errLg.Println(err)
-		imgChan <- loaded
-		return
-	}
-
-	img, kind, err := image.Decode(file)
-	if err != nil {
-		errLg.Printf("Could not decode '%s' into a supported image "+
-			"format: %s", fName, err)
-		imgChan <- loaded
-		return
-	}
-	lg("Decoded '%s' into image type '%s'.", name, kind)
 
 	reg := xgraphics.NewConvert(X, img)
 	lg("Converted '%s' to xgraphics.Image type.", name)
