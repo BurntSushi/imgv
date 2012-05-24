@@ -15,23 +15,17 @@ import (
 // x = (canvas_width - image_width) / 2 and
 // y = (canvas_height - image_height) / 2
 func vpCenter(ximg *xgraphics.Image, canWidth, canHeight int) image.Point {
-	return image.Point{vpXMargin(ximg, canWidth), vpYMargin(ximg, canHeight)}
-}
-
-func vpXMargin(ximg *xgraphics.Image, canWidth int) int {
+	xmargin, ymargin := 0, 0
 	if ximg.Bounds().Dx() < canWidth {
-		return (canWidth - ximg.Bounds().Dx()) / 2
+		xmargin = (canWidth - ximg.Bounds().Dx()) / 2
 	}
-	return 0
-}
-
-func vpYMargin(ximg *xgraphics.Image, canHeight int) int {
 	if ximg.Bounds().Dy() < canHeight {
-		return (canHeight - ximg.Bounds().Dy()) / 2
+		ymargin = (canHeight - ximg.Bounds().Dy()) / 2
 	}
-	return 0
+	return image.Point{xmargin, ymargin}
 }
 
+// basename retrieves the basename of a file path.
 func basename(fName string) string {
 	if lslash := strings.LastIndex(fName, "/"); lslash != -1 {
 		fName = fName[lslash+1:]

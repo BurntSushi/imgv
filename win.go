@@ -16,11 +16,21 @@ import (
 	"github.com/BurntSushi/xgbutil/xwindow"
 )
 
+// window embeds an xwindow.Window value and all available channels used to
+// communicate with the canvas.
+// While the canvas and the window are essentialy the same, the canvas
+// focuses on the abstraction of drawing some image into a viewport while the
+// window focuses on the more X related aspects of setting up the canvas.
 type window struct {
 	*xwindow.Window
 	chans chans
 }
 
+// newWndow creates a new window and dies on failure.
+// This includes mapping the window but not setting up the event handlers.
+// (The event handlers require the channels, and we don't create the channels
+// until all images have been decoded. But we want to show the window to the
+// user before that task is complete.)
 func newWindow(X *xgbutil.XUtil) *window {
 	xwin, err := xwindow.Generate(X)
 	if err != nil {
@@ -35,16 +45,14 @@ func newWindow(X *xgbutil.XUtil) *window {
 	return w
 }
 
+// create creates the window, initializes the keybind and mousebind packages
+// and sets up the window to act like a real top-level client.
 func (w *window) create() {
 	keybind.Initialize(w.X)
 	mousebind.Initialize(w.X)
 
 	err := w.CreateChecked(w.X.RootWin(), 0, 0, flagWidth, flagHeight,
-		xproto.CwBackPixel|xproto.CwEventMask,
-		0xffffff,
-		xproto.EventMaskStructureNotify|xproto.EventMaskExposure|
-			xproto.EventMaskButtonPress|xproto.EventMaskButtonRelease|
-			xproto.EventMaskKeyPress)
+		xproto.CwBackPixel, 0xffffff)
 	if err != nil {
 		errLg.Fatalf("Could not create window: %s", err)
 	}
@@ -75,40 +83,47 @@ func (w *window) create() {
 	w.Map()
 }
 
-func (w *window) resizeToImage() {
-	w.chans.resizeToImageChan <- struct{}{}
-}
-
+// stepLeft moves the origin of the image to the left.
 func (w *window) stepLeft() {
 	w.chans.drawChan <- func(origin image.Point) image.Point {
 		return image.Point{origin.X - flagStepIncrement, origin.Y}
 	}
 }
 
+// stepRight moves the origin of the image to the right.
 func (w *window) stepRight() {
 	w.chans.drawChan <- func(origin image.Point) image.Point {
 		return image.Point{origin.X + flagStepIncrement, origin.Y}
 	}
 }
 
+// stepUp moves the origin of the image down (this would be up, but X origins
+// are in the top-left corner).
 func (w *window) stepUp() {
 	w.chans.drawChan <- func(origin image.Point) image.Point {
 		return image.Point{origin.X, origin.Y - flagStepIncrement}
 	}
 }
 
+// stepDown moves the origin of the image up (this would be down, but X origins
+// are in the top-left corner).
 func (w *window) stepDown() {
 	w.chans.drawChan <- func(origin image.Point) image.Point {
 		return image.Point{origin.X, origin.Y + flagStepIncrement}
 	}
 }
 
+// paint uses the xgbutil/xgraphics package to copy the area corresponding
+// to ximg in its pixmap to the window. It will also issue a clear request
+// before hand to try and avoid artifacts.
 func (w *window) paint(ximg *xgraphics.Image) {
 	dst := vpCenter(ximg, w.Geom.Width(), w.Geom.Height())
 	w.ClearAll()
 	ximg.XExpPaint(w.Id, dst.X, dst.Y)
 }
 
+// nameSet will set the name of the window and emit a benign message to
+// verbose output if it fails.
 func (w *window) nameSet(name string) {
 	// Set _NET_WM_NAME so it looks nice.
 	err := ewmh.WmNameSet(w.X, w.Id, fmt.Sprintf("imgv :: %s", name))
@@ -117,8 +132,32 @@ func (w *window) nameSet(name string) {
 	}
 }
 
+// setupEventHandlers attaches the canvas' channels to the window and
+// sets the appropriate callbacks to some events:
+// ConfigureNotify events will cause the window to update its state of geometry.
+// Expose events will cause the window to repaint the current image.
+// Button events to allow panning.
+// Key events to perform various tasks when certain keys are pressed. Should
+// these be configurable? Meh.
 func (w *window) setupEventHandlers(chans chans) {
 	w.chans = chans
+	w.Listen(xproto.EventMaskStructureNotify | xproto.EventMaskExposure |
+		xproto.EventMaskButtonPress | xproto.EventMaskButtonRelease |
+		xproto.EventMaskKeyPress)
+
+	// Get the current geometry in case we don't get a ConfigureNotify event
+	// (or have already missed it).
+	_, err := w.Geometry()
+	if err != nil {
+		errLg.Fatal(err)
+	}
+
+	// And ask the canvas to draw the first image when it gets around to it.
+	go func() {
+		w.chans.drawChan <- func(origin image.Point) image.Point {
+			return image.Point{}
+		}
+	}()
 
 	// Keep a state of window geometry.
 	xevent.ConfigureNotifyFun(
@@ -155,7 +194,7 @@ func (w *window) setupEventHandlers(chans chans) {
 		"shift-h": func() { w.chans.prevImg <- struct{}{} },
 		"shift-l": func() { w.chans.nextImg <- struct{}{} },
 
-		"r": func() { w.resizeToImage() },
+		"r": func() { w.chans.resizeToImageChan <- struct{}{} },
 
 		"h": func() { w.stepLeft() },
 		"j": func() { w.stepDown() },

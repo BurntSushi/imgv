@@ -7,6 +7,7 @@ import (
 
 var errLg = log.New(os.Stderr, "[imgv error] ", log.Lshortfile)
 
+// lg is a convenient alias for printing verbose output.
 func lg(format string, v ...interface{}) {
 	if !flagVerbose {
 		return

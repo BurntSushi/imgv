@@ -8,6 +8,7 @@ import (
 	_ "image/png"
 	"log"
 	"os"
+	"runtime"
 	"runtime/pprof"
 
 	"github.com/BurntSushi/xgbutil"
@@ -30,6 +31,9 @@ var (
 )
 
 func init() {
+	// Set GOMAXPROCS, since imgv can benefit greatly from parallelism.
+	runtime.GOMAXPROCS(runtime.NumCPU())
+
 	// Set the prefix for verbose output.
 	log.SetPrefix("[imgv] ")
 
@@ -86,6 +90,10 @@ func main() {
 	xevent.Main(X)
 }
 
+// decodeImages takes a list of image files and decodes them into image.Image
+// types. Note that the number of images returned may not be the number of
+// image files passed in. Namely, an image file is skipped if it cannot be
+// read or deocoded into an image type that Go understands.
 func decodeImages(imageFiles []string) ([]string, []image.Image) {
 	// A temporary type used to transport decoded images over channels.
 	type tmpImage struct {
@@ -117,7 +125,7 @@ func decodeImages(imageFiles []string) ([]string, []image.Image) {
 
 			imgChans[i] <- tmpImage{
 				img:  img,
-				name: fName,
+				name: basename(fName),
 			}
 		}(i, fName)
 	}
