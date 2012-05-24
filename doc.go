@@ -12,11 +12,11 @@ The flags are:
 		The 'height' and 'width' flags allow one to specify the initial size
 		of the image window. The image window can still change size afterwards.
 	--auto-resize
-		If set, the image window will be automatically resized to the first image
-		displayed. This overrides the 'height' and 'width' options.
+		If set, the image window will be automatically resized to the first 
+		image displayed. This overrides the 'height' and 'width' options.
 	--increment pixels
-		The amount of pixels to pan an image at each step when using the keyboard 
-		shortcuts.
+		The amount of pixels to pan an image at each step when using the 
+		keyboard shortcuts.
 	--keybindings
 		If set, a list of all key bindings (and mouse bindings) set by imgv is
 		printed. A small description of what each key binding does is included.
