@@ -2,6 +2,7 @@ package main
 
 import (
 	"flag"
+	"fmt"
 	"image"
 	_ "image/gif"
 	_ "image/jpeg"
@@ -23,11 +24,59 @@ var (
 	// The initial width and height of the window.
 	flagWidth, flagHeight int
 
+	// If set, the image window will automatically resize to the first image
+	// that it displays.
+	flagAutoResize bool
+
 	// The amount to increment panning when using h,j,k,l
 	flagStepIncrement int
 
 	// Whether to run a CPU profile.
 	flagProfile string
+
+	// When set, imgv will print all keybindings and exit.
+	flagKeybindings bool
+
+	// A list of keybindings. Each value corresponds to a triple of the key
+	// sequence to bind to, the action to run when that key sequence is
+	// pressed and a quick description of what the keybinding does.
+	keybinds = []keyb{
+		{
+			"left", "Cycle to the previous image.",
+			func(w *window) { w.chans.prevImg <- struct{}{} },
+		},
+		{
+			"right", "Cycle to the next image.",
+			func(w *window) { w.chans.nextImg <- struct{}{} },
+		},
+		{
+			"shift-h", "Cycle to the previous image.",
+			func(w *window) { w.chans.prevImg <- struct{}{} },
+		},
+		{
+			"shift-l", "Cycle to the next image.",
+			func(w *window) { w.chans.nextImg <- struct{}{} },
+		},
+		{
+			"r", "Resize the window to fit the current image.",
+			func(w *window) { w.chans.resizeToImageChan <- struct{}{} },
+		},
+		{
+			"h", "Pan left.", func(w *window) { w.stepLeft() },
+		},
+		{
+			"j", "Pan down.", func(w *window) { w.stepDown() },
+		},
+		{
+			"k", "Pan up.", func(w *window) { w.stepUp() },
+		},
+		{
+			"l", "Pan right.", func(w *window) { w.stepRight() },
+		},
+		{
+			"q", "Quit.", func(w *window) { xevent.Quit(w.X) },
+		},
+	}
 )
 
 func init() {
@@ -39,15 +88,20 @@ func init() {
 
 	// Set all of the flags.
 	flag.BoolVar(&flagVerbose, "v", false,
-		"When set, logging output will be printed to stderr.")
+		"If set, logging output will be printed to stderr.")
 	flag.IntVar(&flagWidth, "width", 600,
 		"The initial width of the window.")
 	flag.IntVar(&flagHeight, "height", 600,
 		"The initial height of the window.")
+	flag.BoolVar(&flagAutoResize, "auto-resize", false,
+		"If set, window will resize to size of first image.")
 	flag.IntVar(&flagStepIncrement, "increment", 20,
-		"The increment used to pan the image when using keyboard shortcuts.")
+		"The increment (in pixels) used to pan the image.")
 	flag.StringVar(&flagProfile, "profile", "",
 		"If set, a CPU profile will be saved to the file name provided.")
+	flag.BoolVar(&flagKeybindings, "keybindings", false,
+		"If set, imgv will output a list all keybindings.")
+	flag.Usage = usage
 	flag.Parse()
 
 	// Do some error checking on the flag values... naughty!
@@ -56,7 +110,24 @@ func init() {
 	}
 }
 
+func usage() {
+	fmt.Fprintf(os.Stderr, "Usage: %s [flags] image-file [image-file ...]\n",
+		basename(os.Args[0]))
+	flag.PrintDefaults()
+	os.Exit(1)
+}
+
 func main() {
+	// If we just need the keybindings, print them and be done.
+	if flagKeybindings {
+		for _, keyb := range keybinds {
+			fmt.Printf("%-10s %s\n", keyb.key, keyb.desc)
+		}
+		fmt.Printf("%-10s %s\n", "mouse",
+			"Left mouse button will pan the image.")
+		os.Exit(0)
+	}
+
 	// Run the CPU profile if we're instructed to.
 	if len(flagProfile) > 0 {
 		f, err := os.Create(flagProfile)
@@ -65,6 +136,13 @@ func main() {
 		}
 		pprof.StartCPUProfile(f)
 		defer pprof.StopCPUProfile()
+	}
+
+	// Whoops!
+	if flag.NArg() == 0 {
+		fmt.Fprint(os.Stderr, "\n")
+		errLg.Print("No images specified.\n\n")
+		usage()
 	}
 
 	// Connect to X and quit if we fail.
@@ -79,6 +157,16 @@ func main() {
 
 	// Decode all images (in parallel).
 	names, imgs := decodeImages(flag.Args())
+
+	// Die now if we don't have any images!
+	if len(imgs) == 0 {
+		errLg.Fatal("No images specified could be shown. Quitting...")
+	}
+
+	// Auto-size the window if appropriate.
+	if flagAutoResize {
+		window.Resize(imgs[0].Bounds().Dx(), imgs[0].Bounds().Dy())
+	}
 
 	// Create the canvas and start the image goroutines.
 	chans := canvas(X, window, names, len(imgs))

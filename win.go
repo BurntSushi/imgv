@@ -16,6 +16,16 @@ import (
 	"github.com/BurntSushi/xgbutil/xwindow"
 )
 
+// keyb represents a value in the keybinding list. Namely, it contains the
+// function to run when a particular key sequence has been pressed, the
+// key sequence to bind to, and a quick description of what the keybinding
+// actually does.
+type keyb struct {
+	key    string
+	desc   string
+	action func(w *window)
+}
+
 // window embeds an xwindow.Window value and all available channels used to
 // communicate with the canvas.
 // While the canvas and the window are essentialy the same, the canvas
@@ -188,27 +198,13 @@ func (w *window) setupEventHandlers(chans chans) {
 		})
 
 	// Set up a map of keybindings to avoid a lot of boiler plate.
-	kbs := map[string]func(){
-		"left":    func() { w.chans.prevImg <- struct{}{} },
-		"right":   func() { w.chans.nextImg <- struct{}{} },
-		"shift-h": func() { w.chans.prevImg <- struct{}{} },
-		"shift-l": func() { w.chans.nextImg <- struct{}{} },
-
-		"r": func() { w.chans.resizeToImageChan <- struct{}{} },
-
-		"h": func() { w.stepLeft() },
-		"j": func() { w.stepDown() },
-		"k": func() { w.stepUp() },
-		"l": func() { w.stepRight() },
-
-		"q": func() { xevent.Quit(w.X) },
-	}
-	for keystring, fun := range kbs {
-		fun := fun
+	// for keystring, fun := range kbs { 
+	for _, keyb := range keybinds {
+		keyb := keyb
 		err := keybind.KeyPressFun(
 			func(X *xgbutil.XUtil, ev xevent.KeyPressEvent) {
-				fun()
-			}).Connect(w.X, w.Id, keystring, false)
+				keyb.action(w)
+			}).Connect(w.X, w.Id, keyb.key, false)
 		if err != nil {
 			errLg.Println(err)
 		}

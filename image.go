@@ -2,15 +2,14 @@ package main
 
 import (
 	"image"
-	"time"
 
 	"github.com/BurntSushi/xgbutil"
 	"github.com/BurntSushi/xgbutil/xgraphics"
 )
 
-// Image acts as an xgraphics.Image type with a name.
+// vimage acts as an xgraphics.Image type with a name.
 // (The name is the basename of the image's corresponding file name.)
-type Image struct {
+type vimage struct {
 	*xgraphics.Image
 	name string
 }
@@ -34,9 +33,7 @@ func newImage(X *xgbutil.XUtil, name string, img image.Image, index int,
 	// an error or not.
 	loaded := imageLoaded{index: index}
 
-	start := time.Now()
 	reg := xgraphics.NewConvert(X, img)
-	lg("Converted '%s' to xgraphics.Image type (%s).", name, time.Since(start))
 
 	if err := reg.CreatePixmap(); err != nil {
 		// TODO: We should display a "Could not load image" image instead
@@ -45,12 +42,11 @@ func newImage(X *xgbutil.XUtil, name string, img image.Image, index int,
 		// before a new pixmap cannot be created.)
 		errLg.Fatal(err)
 	} else {
-		start = time.Now()
 		reg.XDraw()
-		lg("Drawn '%s' to an X pixmap (%s).", name, time.Since(start))
+		lg("Drawn '%s' to an X pixmap.", name)
 	}
 
-	loaded.img = &Image{
+	loaded.img = &vimage{
 		Image: reg,
 		name:  name,
 	}
