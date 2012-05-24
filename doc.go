@@ -119,6 +119,11 @@ speedy, but also for memory usage. (Keeping several different scaled and
 complete versions of a large image can use a ton of memory. With only a few 
 images like this, memory usage adds up quickly.)
 
+Perhaps another option is write a scaling routine that optimizes the use of 
+interfaces out of the performance critical sections. Doing this for image 
+conversion achieved 50-80% speed ups. (I don't think graphics-go does this 
+currently.)
+
 Portability
 
 Obviously, the image viewer will only work with an X server. There are no plans 
