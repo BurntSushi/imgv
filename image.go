@@ -35,7 +35,9 @@ func newImage(X *xgbutil.XUtil, name string, img image.Image, index int,
 
 	reg := xgraphics.NewConvert(X, img)
 	lg("Converted '%s' to an xgraphics.Image type.", name)
-	blendCheckered(reg)
+	// if !img.Opaque() { 
+	// blendCheckered(reg) 
+	// } 
 
 	if err := reg.CreatePixmap(); err != nil {
 		// TODO: We should display a "Could not load image" image instead
@@ -70,14 +72,14 @@ func blendCheckered(dest *xgraphics.Image) {
 	var bgra, clr xgraphics.BGRA
 	for dx = dmnx; dx < dmxx; dx++ {
 		for dy = dmny; dy < dmxy; dy++ {
-			if dx%40 >= 20 {
-				if dy%40 >= 20 {
+			if dx%30 >= 15 {
+				if dy%30 >= 15 {
 					clr = clr1
 				} else {
 					clr = clr2
 				}
 			} else {
-				if dy%40 >= 20 {
+				if dy%30 >= 15 {
 					clr = clr2
 				} else {
 					clr = clr1
