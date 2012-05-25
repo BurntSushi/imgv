@@ -70,14 +70,14 @@ func blendCheckered(dest *xgraphics.Image) {
 	var bgra, clr xgraphics.BGRA
 	for dx = dmnx; dx < dmxx; dx++ {
 		for dy = dmny; dy < dmxy; dy++ {
-			if dx % 40 >= 20 {
-				if dy % 40 >= 20 {
+			if dx%40 >= 20 {
+				if dy%40 >= 20 {
 					clr = clr1
 				} else {
 					clr = clr2
 				}
 			} else {
-				if dy % 40 >= 20 {
+				if dy%40 >= 20 {
 					clr = clr2
 				} else {
 					clr = clr1
