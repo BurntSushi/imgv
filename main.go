@@ -11,6 +11,7 @@ import (
 	"os"
 	"runtime"
 	"runtime/pprof"
+	"time"
 
 	"github.com/BurntSushi/xgbutil"
 	"github.com/BurntSushi/xgbutil/xevent"
@@ -201,6 +202,7 @@ func decodeImages(imageFiles []string) ([]string, []image.Image) {
 				return
 			}
 
+			start := time.Now()
 			img, kind, err := image.Decode(file)
 			if err != nil {
 				errLg.Printf("Could not decode '%s' into a supported image "+
@@ -208,8 +210,8 @@ func decodeImages(imageFiles []string) ([]string, []image.Image) {
 				close(imgChans[i])
 				return
 			}
-			lg("Decoded '%s' into image type '%s'.",
-				fName, kind)
+			lg("Decoded '%s' into image type '%s' (%s).",
+				fName, kind, time.Since(start))
 
 			imgChans[i] <- tmpImage{
 				img:  img,

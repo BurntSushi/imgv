@@ -2,6 +2,7 @@ package main
 
 import (
 	"image"
+	"time"
 
 	"github.com/BurntSushi/xgbutil"
 	"github.com/BurntSushi/xgbutil/xgraphics"
@@ -33,11 +34,25 @@ func newImage(X *xgbutil.XUtil, name string, img image.Image, index int,
 	// an error or not.
 	loaded := imageLoaded{index: index}
 
+	start := time.Now()
 	reg := xgraphics.NewConvert(X, img)
-	lg("Converted '%s' to an xgraphics.Image type.", name)
-	// if !img.Opaque() { 
-	// blendCheckered(reg) 
-	// } 
+	lg("Converted '%s' to an xgraphics.Image type (%s).",
+		name, time.Since(start))
+
+	// Only blend a checkered background if the image *may* have an alpha 
+	// channel. If we want to be a bit more efficient, we could type switch
+	// on all image types use Opaque, but this may add undesirable overhead.
+	// (Where the overhead is scanning the image for opaqueness.)
+	switch img.(type) {
+	case *image.Gray:
+	case *image.Gray16:
+	case *image.YCbCr:
+	default:
+		start = time.Now()
+		blendCheckered(reg)
+		lg("Blended '%s' into a checkered background (%s).",
+			name, time.Since(start))
+	}
 
 	if err := reg.CreatePixmap(); err != nil {
 		// TODO: We should display a "Could not load image" image instead
@@ -46,8 +61,9 @@ func newImage(X *xgbutil.XUtil, name string, img image.Image, index int,
 		// before a new pixmap cannot be created.)
 		errLg.Fatal(err)
 	} else {
+		start = time.Now()
 		reg.XDraw()
-		lg("Drawn '%s' to an X pixmap.", name)
+		lg("Drawn '%s' to an X pixmap (%s).", name, time.Since(start))
 	}
 
 	loaded.img = &vimage{
