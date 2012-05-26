@@ -103,7 +103,7 @@ func blendCheckered(dest *xgraphics.Image) {
 			}
 
 			bgra = dest.At(dx, dy).(xgraphics.BGRA)
-			dest.SetBGRA(dx, dy, xgraphics.BlendBGRA(bgra, clr))
+			dest.SetBGRA(dx, dy, xgraphics.BlendBGRA(clr, bgra))
 		}
 	}
 }
