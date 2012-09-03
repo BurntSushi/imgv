@@ -128,7 +128,7 @@ func (w *window) stepDown() {
 // before hand to try and avoid artifacts.
 func (w *window) paint(ximg *xgraphics.Image) {
 	dst := vpCenter(ximg, w.Geom.Width(), w.Geom.Height())
-	w.ClearAll()
+	//w.ClearAll() UUU Commenting this out avoids flickering, and I see no artifacts!
 	ximg.XExpPaint(w.Id, dst.X, dst.Y)
 }
 
