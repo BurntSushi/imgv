@@ -192,12 +192,12 @@ func findFiles(args []string) []string {
 			files = append(files, f)
 		}
 	}
-	return files 
+	return files
 }
 
 func dirImages(dir string) []string {
 
-	fd, _ := os.Open(dir)	
+	fd, _ := os.Open(dir)
 	fs, _ := fd.Readdirnames(0)
 	files := []string{}
 	for _, f := range fs {
