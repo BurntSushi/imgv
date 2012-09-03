@@ -9,6 +9,7 @@ import (
 	_ "image/png"
 	"log"
 	"os"
+	"path/filepath"
 	"runtime"
 	"runtime/pprof"
 	"time"
@@ -157,7 +158,7 @@ func main() {
 	window := newWindow(X)
 
 	// Decode all images (in parallel).
-	names, imgs := decodeImages(flag.Args())
+	names, imgs := decodeImages(findFiles(flag.Args()))
 
 	// Die now if we don't have any images!
 	if len(imgs) == 0 {
@@ -179,6 +180,35 @@ func main() {
 	xevent.Main(X)
 }
 
+func findFiles(args []string) []string {
+	files := []string{}
+	for _, f := range args {
+		fi, err := os.Stat(f)
+		if err != nil {
+			errLg.Print("Can't access", f, err)
+		} else if fi.IsDir() {
+			files = append(files, dirImages(f)...)
+		} else {
+			files = append(files, f)
+		}
+	}
+	return files 
+}
+
+func dirImages(dir string) []string {
+
+	fd, _ := os.Open(dir)	
+	fs, _ := fd.Readdirnames(0)
+	files := []string{}
+	for _, f := range fs {
+		// TODO filter by regexp
+		if filepath.Ext(f) != "" {
+			files = append(files, filepath.Join(dir, f))
+		}
+	}
+	return files
+}
+
 // decodeImages takes a list of image files and decodes them into image.Image
 // types. Note that the number of images returned may not be the number of
 // image files passed in. Namely, an image file is skipped if it cannot be
@@ -191,7 +221,7 @@ func decodeImages(imageFiles []string) ([]string, []image.Image) {
 	}
 
 	// Decoded all images specified in parallel.
-	imgChans := make([]chan tmpImage, flag.NArg())
+	imgChans := make([]chan tmpImage, len(imageFiles))
 	for i, fName := range imageFiles {
 		imgChans[i] = make(chan tmpImage, 0)
 		go func(i int, fName string) {
