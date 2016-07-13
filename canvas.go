@@ -5,6 +5,7 @@ import (
 	"image"
 
 	"github.com/BurntSushi/xgbutil"
+	"github.com/BurntSushi/xgbutil/xgraphics"
 )
 
 // chans is a group of channels used to communicate with the canvas goroutine.
@@ -198,7 +199,7 @@ func show(win *window, img *vimage, pt image.Point) {
 
 	// Now paint the sub-image to the window.
 	win.paint(img.SubImage(image.Rect(pt.X, pt.Y,
-		pt.X+win.Geom.Width(), pt.Y+win.Geom.Height())))
+		pt.X+win.Geom.Width(), pt.Y+win.Geom.Height())).(*xgraphics.Image))
 
 	// Always set the name of the window when we update it with a new image.
 	win.nameSet(fmt.Sprintf("%s (%dx%d)",
